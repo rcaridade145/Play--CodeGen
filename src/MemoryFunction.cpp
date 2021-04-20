@@ -5,6 +5,7 @@
 #include <cstdint>
 #include "AlignedAlloc.h"
 #include "MemoryFunction.h"
+#include "IrFunction.h"
 
 #define BLOCK_ALIGN 0x10
 
@@ -148,7 +149,8 @@ void CMemoryFunction::operator()(void* context)
 {
 	typedef void (*FctType)(void*);
 	auto fct = reinterpret_cast<FctType>(m_code);
-	fct(context);
+	CIrFunction function(m_code, m_size);
+	function.Execute(context);
 }
 
 void* CMemoryFunction::GetCode() const

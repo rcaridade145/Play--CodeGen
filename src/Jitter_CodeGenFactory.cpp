@@ -1,4 +1,5 @@
 #include "Jitter_CodeGenFactory.h"
+#include "Jitter_CodeGen_Interp.h"
 
 #ifdef _WIN32
 
@@ -41,6 +42,8 @@
 
 Jitter::CCodeGen* Jitter::CreateCodeGen()
 {
+	return new Jitter::CCodeGen_Interp();
+
 #ifdef _WIN32
 	
 	#ifdef _M_X64

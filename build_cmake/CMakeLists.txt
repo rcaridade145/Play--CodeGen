@@ -37,6 +37,7 @@ add_library(CodeGen
 	../src/AArch32Assembler.cpp
 	../src/AArch64Assembler.cpp
 	../src/CoffObjectFile.cpp
+	../src/IrFunction.cpp
 	../src/Jitter_CodeGen_AArch32.cpp
 	../src/Jitter_CodeGen_AArch32_64.cpp
 	../src/Jitter_CodeGen_AArch32_Div.h
@@ -46,6 +47,7 @@ add_library(CodeGen
 	../src/Jitter_CodeGen_AArch64_64.cpp
 	../src/Jitter_CodeGen_AArch64_Fpu.cpp
 	../src/Jitter_CodeGen_AArch64_Md.cpp
+	../src/Jitter_CodeGen_Interp.cpp
 	../src/Jitter_CodeGen_x86_32.cpp
 	../src/Jitter_CodeGen_x86_64.cpp
 	../src/Jitter_CodeGen_x86.cpp
@@ -79,8 +81,10 @@ add_library(CodeGen
 	../include/ArrayStack.h
 	../include/CoffDefs.h
 	../include/CoffObjectFile.h
+	../include/IrFunction.h
 	../include/Jitter_CodeGen_AArch32.h
 	../include/Jitter_CodeGen_AArch64.h
+	../include/Jitter_CodeGen_Interp.h
 	../include/Jitter_CodeGen_x86_32.h
 	../include/Jitter_CodeGen_x86_64.h
 	../include/Jitter_CodeGen_x86.h
