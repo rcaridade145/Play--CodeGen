@@ -37,12 +37,17 @@ private:
 	void SetOperand64(void*, IR_OPERAND, uint64);
 	void SetOperandPtr(void*, IR_OPERAND, uintptr_t);
 
+	void Add(void*, const IR_INSTRUCTION&);
 	void And(void*, const IR_INSTRUCTION&);
+	void Call(void*, const IR_INSTRUCTION&);
 	void Cmp(void*, const IR_INSTRUCTION&);
 	void CondJmp(void*, uint32&, const IR_INSTRUCTION&);
 	void Div(void*, const IR_INSTRUCTION&);
 	void ExtLow64(void*, const IR_INSTRUCTION&);
+	void Jmp(void*, uint32&, const IR_INSTRUCTION&);
 	void LoadFromRef(void*, const IR_INSTRUCTION&);
+	void Not(void*, const IR_INSTRUCTION&);
+	void Param(void*, const IR_INSTRUCTION&);
 	void Sll(void*, const IR_INSTRUCTION&);
 	void Srl(void*, const IR_INSTRUCTION&);
 	void Sra(void*, const IR_INSTRUCTION&);
@@ -55,4 +60,5 @@ private:
 	std::vector<IR_INSTRUCTION> m_instructions;
 	std::vector<uint32> m_stack;
 	std::vector<uint32> m_constants;
+	std::vector<uint32> m_params;
 };

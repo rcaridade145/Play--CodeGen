@@ -32,6 +32,14 @@ void CCodeGen_Interp::GenerateCode(const StatementList& statements, unsigned int
 			labelRefs.insert(std::make_pair(statement.jmpBlock, static_cast<uint32>(instrs.size())));
 		}
 
+		if(statement.op == OP_RETVAL)
+		{
+			auto& callInstr = *instrs.rbegin();
+			assert(callInstr.op == OP_CALL);
+			callInstr.dst = EncodeOperand(statement.dst);
+			continue;
+		}
+
 		IR_INSTRUCTION instr;
 		instr.op = EncodeOp(statement);
 		instr.dst = EncodeOperand(statement.dst);

@@ -44,6 +44,9 @@ void CIrFunction::Execute(void* context)
 			SetOperand(context, instr.dst, src1Value);
 		}
 		break;
+		case OP_ADD:
+			Add(context, instr);
+			break;
 		case OP_ADDREF:
 		{
 			uintptr_t src1Value = GetOperandPtr(context, instr.src1);
@@ -55,8 +58,8 @@ void CIrFunction::Execute(void* context)
 		case OP_AND:
 			And(context, instr);
 			break;
-		case OP_LOADFROMREF:
-			LoadFromRef(context, instr);
+		case OP_CALL:
+			Call(context, instr);
 			break;
 		case OP_CMP:
 			Cmp(context, instr);
@@ -67,8 +70,27 @@ void CIrFunction::Execute(void* context)
 		case OP_DIV:
 			Div(context, instr);
 			break;
+		case OP_EXTERNJMP:
+		{
+			uintptr_t src1Value = GetOperandPtr(context, instr.src1);
+			reinterpret_cast<void (*)(void*)>(src1Value)(context);
+			return;
+		}
+		break;
 		case OP_EXTLOW64:
 			ExtLow64(context, instr);
+			break;
+		case OP_JMP:
+			Jmp(context, ip, instr);
+			break;
+		case OP_LOADFROMREF:
+			LoadFromRef(context, instr);
+			break;
+		case OP_NOT:
+			Not(context, instr);
+			break;
+		case OP_PARAM:
+			Param(context, instr);
 			break;
 		case OP_SLL:
 			Sll(context, instr);
@@ -88,18 +110,19 @@ void CIrFunction::Execute(void* context)
 		case OP_XOR:
 			Xor(context, instr);
 			break;
-		case OP_EXTERNJMP:
-		{
-			uintptr_t src1Value = GetOperandPtr(context, instr.src1);
-			reinterpret_cast<void (*)(void*)>(src1Value)(context);
-			return;
-		}
-		break;
 		default:
 			assert(false);
 			break;
 		}
 	}
+}
+
+void CIrFunction::Add(void* context, const IR_INSTRUCTION& instr)
+{
+	uint32 src1Value = GetOperand(context, instr.src1);
+	uint32 src2Value = GetOperand(context, instr.src2);
+	uint32 dstValue = src1Value + src2Value;
+	SetOperand(context, instr.dst, dstValue);
 }
 
 void CIrFunction::And(void* context, const IR_INSTRUCTION& instr)
@@ -108,6 +131,51 @@ void CIrFunction::And(void* context, const IR_INSTRUCTION& instr)
 	uint32 src2Value = GetOperand(context, instr.src2);
 	uint32 dstValue = src1Value & src2Value;
 	SetOperand(context, instr.dst, dstValue);
+}
+
+void CIrFunction::Call(void* context, const IR_INSTRUCTION& instr)
+{
+	auto src1Value = GetOperandPtr(context, instr.src1);
+	auto src2Value = GetOperand(context, instr.src2);
+	assert(src2Value <= 3);
+	assert(src2Value <= m_params.size());
+	auto fctSignature = 0;
+	if(instr.dst != 0)
+	{
+		uint32 type = GetOperandType(instr.dst);
+		assert(type < 0x80);
+		fctSignature |= static_cast<uint8>(type | 0x80);
+	}
+	for(uint32 i = 0; i < src2Value; i++)
+	{
+		auto param = m_params[i];
+		uint32 type = GetOperandType(param);
+		assert(type < 0x80);
+		fctSignature |= static_cast<uint8>(type | 0x80) << ((i + 1) * 8);
+	}
+	switch(fctSignature)
+	{
+	case 0x00008084:
+	{
+		void* param0 = context;
+		auto fct = reinterpret_cast<uint32 (*)(void*)>(src1Value);
+		uint32 dstValue = fct(param0);
+		SetOperand(context, instr.dst, dstValue);
+	}
+	break;
+	case 0x00008484:
+	{
+		uint32 param0 = GetOperand(context, m_params[0]);
+		auto fct = reinterpret_cast<uint32 (*)(uint32)>(src1Value);
+		uint32 dstValue = fct(param0);
+		SetOperand(context, instr.dst, dstValue);
+	}
+	break;
+	default:
+		assert(false);
+		break;
+	}
+	m_params.erase(m_params.begin(), m_params.begin() + src2Value);
 }
 
 void CIrFunction::Cmp(void* context, const IR_INSTRUCTION& instr)
@@ -153,8 +221,34 @@ void CIrFunction::CondJmp(void* context, uint32& ip, const IR_INSTRUCTION& instr
 		}
 		if(result)
 		{
-			ip = instr.dst;
+			ip = instr.dst - 1;
 		}
+	}
+	else if((src1Type == SYM_RELATIVE) && (src2Type == SYM_CONSTANT))
+	{
+		auto src1Value = GetOperand(context, instr.src1);
+		auto src2Value = GetOperand(context, instr.src2);
+		bool result = false;
+		switch(cc)
+		{
+		case CONDITION_EQ:
+			result = (src1Value == src2Value);
+			break;
+		case CONDITION_NE:
+			result = (src1Value != src2Value);
+			break;
+		default:
+			assert(false);
+			break;
+		}
+		if(result)
+		{
+			ip = instr.dst - 1;
+		}
+	}
+	else
+	{
+		assert(false);
 	}
 }
 
@@ -175,6 +269,11 @@ void CIrFunction::ExtLow64(void* context, const IR_INSTRUCTION& instr)
 	SetOperand(context, instr.dst, dstValue);
 }
 
+void CIrFunction::Jmp(void* context, uint32& ip, const IR_INSTRUCTION& instr)
+{
+	ip = instr.dst - 1;
+}
+
 void CIrFunction::LoadFromRef(void* context, const IR_INSTRUCTION& instr)
 {
 	auto dstType = GetOperandType(instr.dst);
@@ -191,6 +290,18 @@ void CIrFunction::LoadFromRef(void* context, const IR_INSTRUCTION& instr)
 		assert(false);
 		break;
 	}
+}
+
+void CIrFunction::Not(void* context, const IR_INSTRUCTION& instr)
+{
+	uint32 src1Value = GetOperand(context, instr.src1);
+	uint32 dstValue = ~src1Value;
+	SetOperand(context, instr.dst, dstValue);
+}
+
+void CIrFunction::Param(void* context, const IR_INSTRUCTION& instr)
+{
+	m_params.push_back(instr.src1);
 }
 
 void CIrFunction::Sll(void* context, const IR_INSTRUCTION& instr)
