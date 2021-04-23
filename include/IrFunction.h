@@ -2,8 +2,14 @@
 
 #include "Types.h"
 #include "Jitter_Statement.h"
+#ifdef _WIN32
+#include <xmmintrin.h>
+#endif
 
 typedef uint32 IR_OPERAND;
+#ifdef _WIN32
+typedef __m128 IR_UINT128;
+#endif
 
 struct IR_INSTRUCTION
 {
@@ -31,6 +37,7 @@ private:
 
 	uint32 GetOperand(void*, IR_OPERAND);
 	uint64 GetOperand64(void*, IR_OPERAND);
+	IR_UINT128 GetOperand128(void*, IR_OPERAND);
 	uintptr_t GetOperandPtr(void*, IR_OPERAND);
 
 	void SetOperand(void*, IR_OPERAND, uint32);
@@ -41,12 +48,14 @@ private:
 	void And(void*, const IR_INSTRUCTION&);
 	void Call(void*, const IR_INSTRUCTION&);
 	void Cmp(void*, const IR_INSTRUCTION&);
+	void Cmp64(void*, const IR_INSTRUCTION&);
 	void CondJmp(void*, uint32&, const IR_INSTRUCTION&);
 	void Div(void*, const IR_INSTRUCTION&);
 	void ExtLow64(void*, const IR_INSTRUCTION&);
 	void Jmp(void*, uint32&, const IR_INSTRUCTION&);
 	void LoadFromRef(void*, const IR_INSTRUCTION&);
 	void Not(void*, const IR_INSTRUCTION&);
+	void Or(void*, const IR_INSTRUCTION&);
 	void Param(void*, const IR_INSTRUCTION&);
 	void Sll(void*, const IR_INSTRUCTION&);
 	void Srl(void*, const IR_INSTRUCTION&);

@@ -122,16 +122,21 @@ uint32 CCodeGen_Interp::EncodeOperand(const Jitter::SymbolRefPtr& symbolRef)
 		offset = symbol->m_valueLow;
 		break;
 	case SYM_CONSTANT:
-		offset = m_constants.size();
+		offset = m_constants.size() * sizeof(uint32);
 		m_constants.push_back(symbol->m_valueLow);
 		break;
 	case SYM_CONSTANT64:
-		offset = m_constants.size();
+		//Align on 64-bit
+		if(m_constants.size() & 1)
+		{
+			m_constants.push_back(0);
+		}
+		offset = m_constants.size() * sizeof(uint32);
 		m_constants.push_back(symbol->m_valueLow);
 		m_constants.push_back(symbol->m_valueHigh);
 		break;
 	case SYM_CONSTANTPTR:
-		offset = m_constants.size();
+		offset = m_constants.size() * sizeof(uint32);
 		m_constants.push_back(symbol->m_valueLow);
 		m_constants.push_back(symbol->m_valueHigh);
 		break;

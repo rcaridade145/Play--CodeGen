@@ -64,6 +64,9 @@ void CIrFunction::Execute(void* context)
 		case OP_CMP:
 			Cmp(context, instr);
 			break;
+		case OP_CMP64:
+			Cmp64(context, instr);
+			break;
 		case OP_CONDJMP:
 			CondJmp(context, ip, instr);
 			break;
@@ -88,6 +91,9 @@ void CIrFunction::Execute(void* context)
 			break;
 		case OP_NOT:
 			Not(context, instr);
+			break;
+		case OP_OR:
+			Or(context, instr);
 			break;
 		case OP_PARAM:
 			Param(context, instr);
@@ -199,11 +205,36 @@ void CIrFunction::Cmp(void* context, const IR_INSTRUCTION& instr)
 	SetOperand(context, instr.dst, dstValue);
 }
 
+void CIrFunction::Cmp64(void* context, const IR_INSTRUCTION& instr)
+{
+	auto cc = GetInstructionCondition(instr);
+	uint64 src1Value = GetOperand64(context, instr.src1);
+	uint64 src2Value = GetOperand64(context, instr.src2);
+	uint32 dstValue = 0;
+	switch(cc)
+	{
+	case CONDITION_NE:
+		dstValue = src1Value != src2Value;
+		break;
+	case CONDITION_BL:
+		dstValue = src1Value < src2Value;
+		break;
+	case CONDITION_LT:
+		dstValue = (static_cast<int64>(src1Value) < static_cast<int64>(src2Value));
+		break;
+	default:
+		assert(false);
+		break;
+	}
+	SetOperand(context, instr.dst, dstValue);
+}
+
 void CIrFunction::CondJmp(void* context, uint32& ip, const IR_INSTRUCTION& instr)
 {
 	auto cc = GetInstructionCondition(instr);
 	auto src1Type = GetOperandType(instr.src1);
 	auto src2Type = GetOperandType(instr.src2);
+	bool isSrc1Word = (src1Type == SYM_RELATIVE) || (src1Type == SYM_TEMPORARY);
 	if((src1Type == SYM_TMP_REFERENCE) && (src2Type == SYM_CONSTANT))
 	{
 		auto src1Value = GetOperandPtr(context, instr.src1);
@@ -224,7 +255,7 @@ void CIrFunction::CondJmp(void* context, uint32& ip, const IR_INSTRUCTION& instr
 			ip = instr.dst - 1;
 		}
 	}
-	else if((src1Type == SYM_RELATIVE) && (src2Type == SYM_CONSTANT))
+	else if(isSrc1Word && (src2Type == SYM_CONSTANT))
 	{
 		auto src1Value = GetOperand(context, instr.src1);
 		auto src2Value = GetOperand(context, instr.src2);
@@ -236,6 +267,9 @@ void CIrFunction::CondJmp(void* context, uint32& ip, const IR_INSTRUCTION& instr
 			break;
 		case CONDITION_NE:
 			result = (src1Value != src2Value);
+			break;
+		case CONDITION_GT:
+			result = (static_cast<int32>(src1Value) > static_cast<int32>(src2Value));
 			break;
 		default:
 			assert(false);
@@ -299,6 +333,14 @@ void CIrFunction::Not(void* context, const IR_INSTRUCTION& instr)
 	SetOperand(context, instr.dst, dstValue);
 }
 
+void CIrFunction::Or(void* context, const IR_INSTRUCTION& instr)
+{
+	uint32 src1Value = GetOperand(context, instr.src1);
+	uint32 src2Value = GetOperand(context, instr.src2);
+	uint32 dstValue = src1Value | src2Value;
+	SetOperand(context, instr.dst, dstValue);
+}
+
 void CIrFunction::Param(void* context, const IR_INSTRUCTION& instr)
 {
 	m_params.push_back(instr.src1);
@@ -334,8 +376,12 @@ void CIrFunction::StoreAtRef(void* context, const IR_INSTRUCTION& instr)
 	auto src2Type = GetOperandType(instr.src2);
 	switch(src2Type)
 	{
-	//case SYM_RELATIVE128:
-	//	break;
+	case SYM_RELATIVE128:
+	{
+		auto value = GetOperand128(context, instr.src2);
+		_mm_store_ps(reinterpret_cast<float*>(src1Value), value);
+	}
+	break;
 	default:
 		assert(false);
 		break;
@@ -362,17 +408,19 @@ uint32 CIrFunction::GetOperand(void* context, IR_OPERAND op)
 {
 	auto type = static_cast<SYM_TYPE>(op >> 16);
 	uint32 offset = op & 0xFFFF;
+	assert((offset & 0x03) == 0);
+	uint32 elemOffset = offset / 4;
 	uint32 value = 0;
 	switch(type)
 	{
 	case SYM_RELATIVE:
-		value = reinterpret_cast<uint32*>(context)[offset / 4];
+		value = reinterpret_cast<uint32*>(context)[elemOffset];
 		break;
 	case SYM_TEMPORARY:
-		value = m_stack[offset / 4];
+		value = reinterpret_cast<uint32*>(m_stack.data())[elemOffset];
 		break;
 	case SYM_CONSTANT:
-		value = m_constants[offset];
+		value = reinterpret_cast<uint32*>(m_constants.data())[elemOffset];
 		break;
 	default:
 		assert(false);
@@ -385,11 +433,38 @@ uint64 CIrFunction::GetOperand64(void* context, IR_OPERAND op)
 {
 	auto type = static_cast<SYM_TYPE>(op >> 16);
 	uint32 offset = op & 0xFFFF;
+	assert((offset & 0x07) == 0);
+	uint32 elemOffset = offset / 8;
 	uint64 value = 0;
 	switch(type)
 	{
+	case SYM_RELATIVE64:
+		value = reinterpret_cast<uint64*>(context)[elemOffset];
+		break;
 	case SYM_TEMPORARY64:
-		value = *reinterpret_cast<uint64*>(m_stack.data() + offset / 4);
+		value = reinterpret_cast<uint64*>(m_stack.data())[elemOffset];
+		break;
+	case SYM_CONSTANT64:
+		value = reinterpret_cast<uint64*>(m_constants.data())[elemOffset];
+		break;
+	default:
+		assert(false);
+		break;
+	}
+	return value;
+}
+
+IR_UINT128 CIrFunction::GetOperand128(void* context, IR_OPERAND op)
+{
+	auto type = static_cast<SYM_TYPE>(op >> 16);
+	uint32 offset = op & 0xFFFF;
+	assert((offset & 0x0F) == 0);
+	uint32 elemOffset = offset / 4;
+	IR_UINT128 value = _mm_setzero_ps();
+	switch(type)
+	{
+	case SYM_RELATIVE128:
+		value = _mm_load_ps(reinterpret_cast<float*>(context) + elemOffset);
 		break;
 	default:
 		assert(false);
@@ -402,17 +477,20 @@ uintptr_t CIrFunction::GetOperandPtr(void* context, IR_OPERAND op)
 {
 	auto type = static_cast<SYM_TYPE>(op >> 16);
 	uint32 offset = op & 0xFFFF;
+	static_assert(sizeof(uintptr_t) == 8);
+	assert((offset & 0x07) == 0);
+	uint32 elemOffset = offset / 8;
 	uintptr_t value = 0;
 	switch(type)
 	{
-	case SYM_CONSTANTPTR:
-		value = *reinterpret_cast<uintptr_t*>(m_constants.data() + offset);
-		break;
 	case SYM_REL_REFERENCE:
-		value = *reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8*>(context) + offset);
+		value = reinterpret_cast<uintptr_t*>(context)[elemOffset];
 		break;
 	case SYM_TMP_REFERENCE:
-		value = *reinterpret_cast<uintptr_t*>(m_stack.data() + offset / 4);
+		value = reinterpret_cast<uintptr_t*>(m_stack.data())[elemOffset];
+		break;
+	case SYM_CONSTANTPTR:
+		value = reinterpret_cast<uintptr_t*>(m_constants.data())[elemOffset];
 		break;
 	default:
 		assert(false);
@@ -425,13 +503,15 @@ void CIrFunction::SetOperand(void* context, IR_OPERAND op, uint32 value)
 {
 	auto type = static_cast<SYM_TYPE>(op >> 16);
 	uint32 offset = op & 0xFFFF;
+	assert((offset & 0x03) == 0);
+	uint32 elemOffset = offset / 4;
 	switch(type)
 	{
 	case SYM_RELATIVE:
-		reinterpret_cast<uint32*>(context)[offset / 4] = value;
+		reinterpret_cast<uint32*>(context)[elemOffset] = value;
 		break;
 	case SYM_TEMPORARY:
-		m_stack[offset / 4] = value;
+		reinterpret_cast<uint32*>(m_stack.data())[elemOffset] = value;
 		break;
 	default:
 		assert(false);
@@ -443,10 +523,12 @@ void CIrFunction::SetOperand64(void* context, IR_OPERAND op, uint64 value)
 {
 	auto type = static_cast<SYM_TYPE>(op >> 16);
 	uint32 offset = op & 0xFFFF;
+	assert((offset & 0x07) == 0);
+	uint32 elemOffset = offset / 8;
 	switch(type)
 	{
 	case SYM_TEMPORARY64:
-		*reinterpret_cast<uint64*>(m_stack.data() + offset / 4) = value;
+		reinterpret_cast<uint64*>(m_stack.data())[elemOffset] = value;
 		break;
 	default:
 		assert(false);
@@ -458,10 +540,13 @@ void CIrFunction::SetOperandPtr(void* context, IR_OPERAND op, uintptr_t value)
 {
 	auto type = static_cast<SYM_TYPE>(op >> 16);
 	uint32 offset = op & 0xFFFF;
+	static_assert(sizeof(uintptr_t) == 8);
+	assert((offset & 0x07) == 0);
+	uint32 elemOffset = offset / 8;
 	switch(type)
 	{
 	case SYM_TMP_REFERENCE:
-		*reinterpret_cast<uintptr_t*>(m_stack.data() + offset / 4) = value;
+		reinterpret_cast<uintptr_t*>(m_stack.data())[elemOffset] = value;
 		break;
 	default:
 		assert(false);
