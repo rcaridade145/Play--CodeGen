@@ -4,7 +4,7 @@
 
 using namespace Jitter;
 
-SYM_TYPE CIrFunction::GetOperandType(uint32 op)
+SYM_TYPE CIrFunction::GetOperandType(IR_OPERAND op)
 {
 	return static_cast<SYM_TYPE>(op >> 16);
 }
@@ -38,23 +38,12 @@ void CIrFunction::Execute(void* context)
 		auto op = static_cast<Jitter::OPERATION>(instr.op & 0xFFFF);
 		switch(op)
 		{
-		case OP_MOV:
-		{
-			uint32 src1Value = GetOperand(context, instr.src1);
-			SetOperand(context, instr.dst, src1Value);
-		}
-		break;
 		case OP_ADD:
 			Add(context, instr);
 			break;
 		case OP_ADDREF:
-		{
-			uintptr_t src1Value = GetOperandPtr(context, instr.src1);
-			uint32 src2Value = GetOperand(context, instr.src2);
-			uintptr_t dstValue = src1Value + src2Value;
-			SetOperandPtr(context, instr.dst, dstValue);
-		}
-		break;
+			AddRef(context, instr);
+			break;
 		case OP_AND:
 			And(context, instr);
 			break;
@@ -73,6 +62,9 @@ void CIrFunction::Execute(void* context)
 		case OP_DIV:
 			Div(context, instr);
 			break;
+		case OP_DIVS:
+			DivS(context, instr);
+			break;
 		case OP_EXTERNJMP:
 		{
 			uintptr_t src1Value = GetOperandPtr(context, instr.src1);
@@ -83,11 +75,23 @@ void CIrFunction::Execute(void* context)
 		case OP_EXTLOW64:
 			ExtLow64(context, instr);
 			break;
+		case OP_EXTHIGH64:
+			ExtHigh64(context, instr);
+			break;
 		case OP_JMP:
 			Jmp(context, ip, instr);
 			break;
 		case OP_LOADFROMREF:
 			LoadFromRef(context, instr);
+			break;
+		case OP_MOV:
+			Mov(context, instr);
+			break;
+		case OP_MUL:
+			Mul(context, instr);
+			break;
+		case OP_MULS:
+			MulS(context, instr);
 			break;
 		case OP_NOT:
 			Not(context, instr);
@@ -129,6 +133,14 @@ void CIrFunction::Add(void* context, const IR_INSTRUCTION& instr)
 	uint32 src2Value = GetOperand(context, instr.src2);
 	uint32 dstValue = src1Value + src2Value;
 	SetOperand(context, instr.dst, dstValue);
+}
+
+void CIrFunction::AddRef(void* context, const IR_INSTRUCTION& instr)
+{
+	uintptr_t src1Value = GetOperandPtr(context, instr.src1);
+	uint32 src2Value = GetOperand(context, instr.src2);
+	uintptr_t dstValue = src1Value + src2Value;
+	SetOperandPtr(context, instr.dst, dstValue);
 }
 
 void CIrFunction::And(void* context, const IR_INSTRUCTION& instr)
@@ -296,10 +308,27 @@ void CIrFunction::Div(void* context, const IR_INSTRUCTION& instr)
 	SetOperand64(context, instr.dst, dstValue);
 }
 
+void CIrFunction::DivS(void* context, const IR_INSTRUCTION& instr)
+{
+	int32 src1Value = GetOperand(context, instr.src1);
+	int32 src2Value = GetOperand(context, instr.src2);
+	int32 dividend = src1Value / src2Value;
+	int32 remainder = src1Value % src2Value;
+	uint64 dstValue = dividend | static_cast<uint64>(remainder) << 32;
+	SetOperand64(context, instr.dst, dstValue);
+}
+
 void CIrFunction::ExtLow64(void* context, const IR_INSTRUCTION& instr)
 {
 	uint64 src1Value = GetOperand64(context, instr.src1);
-	uint32 dstValue = static_cast<uint64>(src1Value);
+	uint32 dstValue = static_cast<uint32>(src1Value);
+	SetOperand(context, instr.dst, dstValue);
+}
+
+void CIrFunction::ExtHigh64(void* context, const IR_INSTRUCTION& instr)
+{
+	uint64 src1Value = GetOperand64(context, instr.src1);
+	uint32 dstValue = static_cast<uint32>(src1Value >> 32);
 	SetOperand(context, instr.dst, dstValue);
 }
 
@@ -314,6 +343,13 @@ void CIrFunction::LoadFromRef(void* context, const IR_INSTRUCTION& instr)
 	auto src1Value = GetOperandPtr(context, instr.src1);
 	switch(dstType)
 	{
+	case SYM_RELATIVE:
+	case SYM_TEMPORARY:
+	{
+		auto dstValue = *reinterpret_cast<uint32*>(src1Value);
+		SetOperand(context, instr.dst, dstValue);
+	}
+	break;
 	case SYM_TMP_REFERENCE:
 	{
 		auto dstValue = *reinterpret_cast<uintptr_t*>(src1Value);
@@ -324,6 +360,48 @@ void CIrFunction::LoadFromRef(void* context, const IR_INSTRUCTION& instr)
 		assert(false);
 		break;
 	}
+}
+
+void CIrFunction::Mov(void* context, const IR_INSTRUCTION& instr)
+{
+	auto src1Type = GetOperandType(instr.src1);
+	switch(src1Type)
+	{
+	case SYM_RELATIVE:
+	case SYM_TEMPORARY:
+	case SYM_CONSTANT:
+	{
+		uint32 value = GetOperand(context, instr.src1);
+		SetOperand(context, instr.dst, value);
+	}
+	break;
+	case SYM_RELATIVE64:
+	case SYM_CONSTANT64:
+	{
+		uint64 value = GetOperand64(context, instr.src1);
+		SetOperand64(context, instr.dst, value);
+	}
+	break;
+	default:
+		assert(false);
+		break;
+	}
+}
+
+void CIrFunction::Mul(void* context, const IR_INSTRUCTION& instr)
+{
+	uint32 src1Value = GetOperand(context, instr.src1);
+	uint32 src2Value = GetOperand(context, instr.src2);
+	uint64 dstValue = static_cast<uint64>(src1Value) * static_cast<uint64>(src2Value);
+	SetOperand64(context, instr.dst, dstValue);
+}
+
+void CIrFunction::MulS(void* context, const IR_INSTRUCTION& instr)
+{
+	int32 src1Value = GetOperand(context, instr.src1);
+	int32 src2Value = GetOperand(context, instr.src2);
+	int64 dstValue = static_cast<int64>(src1Value) * static_cast<int64>(src2Value);
+	SetOperand64(context, instr.dst, dstValue);
 }
 
 void CIrFunction::Not(void* context, const IR_INSTRUCTION& instr)
@@ -376,6 +454,19 @@ void CIrFunction::StoreAtRef(void* context, const IR_INSTRUCTION& instr)
 	auto src2Type = GetOperandType(instr.src2);
 	switch(src2Type)
 	{
+	case SYM_RELATIVE:
+	case SYM_CONSTANT:
+	{
+		auto value = GetOperand(context, instr.src2);
+		*reinterpret_cast<uint32*>(src1Value) = value;
+	}
+	break;
+	case SYM_RELATIVE64:
+	{
+		auto value = GetOperand64(context, instr.src2);
+		*reinterpret_cast<uint64*>(src1Value) = value;
+	}
+	break;
 	case SYM_RELATIVE128:
 	{
 		auto value = GetOperand128(context, instr.src2);
@@ -527,6 +618,9 @@ void CIrFunction::SetOperand64(void* context, IR_OPERAND op, uint64 value)
 	uint32 elemOffset = offset / 8;
 	switch(type)
 	{
+	case SYM_RELATIVE64:
+		reinterpret_cast<uint64*>(context)[elemOffset] = value;
+		break;
 	case SYM_TEMPORARY64:
 		reinterpret_cast<uint64*>(m_stack.data())[elemOffset] = value;
 		break;

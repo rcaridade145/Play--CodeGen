@@ -45,15 +45,21 @@ private:
 	void SetOperandPtr(void*, IR_OPERAND, uintptr_t);
 
 	void Add(void*, const IR_INSTRUCTION&);
+	void AddRef(void*, const IR_INSTRUCTION&);
 	void And(void*, const IR_INSTRUCTION&);
 	void Call(void*, const IR_INSTRUCTION&);
 	void Cmp(void*, const IR_INSTRUCTION&);
 	void Cmp64(void*, const IR_INSTRUCTION&);
 	void CondJmp(void*, uint32&, const IR_INSTRUCTION&);
 	void Div(void*, const IR_INSTRUCTION&);
+	void DivS(void*, const IR_INSTRUCTION&);
 	void ExtLow64(void*, const IR_INSTRUCTION&);
+	void ExtHigh64(void*, const IR_INSTRUCTION&);
 	void Jmp(void*, uint32&, const IR_INSTRUCTION&);
 	void LoadFromRef(void*, const IR_INSTRUCTION&);
+	void Mov(void*, const IR_INSTRUCTION&);
+	void Mul(void*, const IR_INSTRUCTION&);
+	void MulS(void*, const IR_INSTRUCTION&);
 	void Not(void*, const IR_INSTRUCTION&);
 	void Or(void*, const IR_INSTRUCTION&);
 	void Param(void*, const IR_INSTRUCTION&);
