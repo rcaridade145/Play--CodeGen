@@ -47,6 +47,9 @@ void CIrFunction::Execute(void* context)
 		case OP_AND:
 			And(context, instr);
 			break;
+		case OP_AND64:
+			And64(context, instr);
+			break;
 		case OP_CALL:
 			Call(context, instr);
 			break;
@@ -84,6 +87,9 @@ void CIrFunction::Execute(void* context)
 		case OP_LOADFROMREF:
 			LoadFromRef(context, instr);
 			break;
+		case OP_LOAD16FROMREF:
+			Load16FromRef(context, instr);
+			break;
 		case OP_MOV:
 			Mov(context, instr);
 			break;
@@ -113,6 +119,9 @@ void CIrFunction::Execute(void* context)
 			break;
 		case OP_STOREATREF:
 			StoreAtRef(context, instr);
+			break;
+		case OP_STORE16ATREF:
+			Store16AtRef(context, instr);
 			break;
 		case OP_SUB:
 			Sub(context, instr);
@@ -151,13 +160,21 @@ void CIrFunction::And(void* context, const IR_INSTRUCTION& instr)
 	SetOperand(context, instr.dst, dstValue);
 }
 
+void CIrFunction::And64(void* context, const IR_INSTRUCTION& instr)
+{
+	uint64 src1Value = GetOperand64(context, instr.src1);
+	uint64 src2Value = GetOperand64(context, instr.src2);
+	uint64 dstValue = src1Value & src2Value;
+	SetOperand64(context, instr.dst, dstValue);
+}
+
 void CIrFunction::Call(void* context, const IR_INSTRUCTION& instr)
 {
 	auto src1Value = GetOperandPtr(context, instr.src1);
 	auto src2Value = GetOperand(context, instr.src2);
 	assert(src2Value <= 3);
 	assert(src2Value <= m_params.size());
-	auto fctSignature = 0;
+	uint32 fctSignature = 0;
 	if(instr.dst != 0)
 	{
 		uint32 type = GetOperandType(instr.dst);
@@ -187,6 +204,44 @@ void CIrFunction::Call(void* context, const IR_INSTRUCTION& instr)
 		auto fct = reinterpret_cast<uint32 (*)(uint32)>(src1Value);
 		uint32 dstValue = fct(param0);
 		SetOperand(context, instr.dst, dstValue);
+	}
+	break;
+	case 0x00808484:
+	{
+		void* param0 = context;
+		uint32 param1 = GetOperand(context, m_params[0]);
+		auto fct = reinterpret_cast<uint32 (*)(void*, uint32)>(src1Value);
+		uint32 dstValue = fct(param0, param1);
+		SetOperand(context, instr.dst, dstValue);
+	}
+	break;
+	case 0x0080848A:
+	{
+		void* param0 = context;
+		uint32 param1 = GetOperand(context, m_params[0]);
+		auto fct = reinterpret_cast<uint64 (*)(void*, uint32)>(src1Value);
+		uint64 dstValue = fct(param0, param1);
+		SetOperand64(context, instr.dst, dstValue);
+	}
+	break;
+	case 0x80818400:
+	case 0x80818300:
+	case 0x80838400:
+	{
+		void* param0 = context;
+		uint32 param1 = GetOperand(context, m_params[1]);
+		uint32 param2 = GetOperand(context, m_params[0]);
+		auto fct = reinterpret_cast<void (*)(void*, uint32, uint32)>(src1Value);
+		fct(param0, param1, param2);
+	}
+	break;
+	case 0x80898400:
+	{
+		void* param0 = context;
+		uint64 param1 = GetOperand64(context, m_params[1]);
+		uint32 param2 = GetOperand(context, m_params[0]);
+		auto fct = reinterpret_cast<void (*)(void*, uint64, uint32)>(src1Value);
+		fct(param0, param1, param2);
 	}
 	break;
 	default:
@@ -362,6 +417,13 @@ void CIrFunction::LoadFromRef(void* context, const IR_INSTRUCTION& instr)
 	}
 }
 
+void CIrFunction::Load16FromRef(void* context, const IR_INSTRUCTION& instr)
+{
+	auto src1Value = GetOperandPtr(context, instr.src1);
+	auto dstValue = *reinterpret_cast<uint16*>(src1Value);
+	SetOperand(context, instr.dst, dstValue);
+}
+
 void CIrFunction::Mov(void* context, const IR_INSTRUCTION& instr)
 {
 	auto src1Type = GetOperandType(instr.src1);
@@ -376,6 +438,7 @@ void CIrFunction::Mov(void* context, const IR_INSTRUCTION& instr)
 	}
 	break;
 	case SYM_RELATIVE64:
+	case SYM_TEMPORARY64:
 	case SYM_CONSTANT64:
 	{
 		uint64 value = GetOperand64(context, instr.src1);
@@ -477,6 +540,13 @@ void CIrFunction::StoreAtRef(void* context, const IR_INSTRUCTION& instr)
 		assert(false);
 		break;
 	}
+}
+
+void CIrFunction::Store16AtRef(void* context, const IR_INSTRUCTION& instr)
+{
+	auto src1Value = GetOperandPtr(context, instr.src1);
+	auto value = GetOperand(context, instr.src2);
+	*reinterpret_cast<uint16*>(src1Value) = static_cast<uint16>(value);
 }
 
 void CIrFunction::Sub(void* context, const IR_INSTRUCTION& instr)

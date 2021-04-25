@@ -47,6 +47,7 @@ private:
 	void Add(void*, const IR_INSTRUCTION&);
 	void AddRef(void*, const IR_INSTRUCTION&);
 	void And(void*, const IR_INSTRUCTION&);
+	void And64(void*, const IR_INSTRUCTION&);
 	void Call(void*, const IR_INSTRUCTION&);
 	void Cmp(void*, const IR_INSTRUCTION&);
 	void Cmp64(void*, const IR_INSTRUCTION&);
@@ -57,6 +58,7 @@ private:
 	void ExtHigh64(void*, const IR_INSTRUCTION&);
 	void Jmp(void*, uint32&, const IR_INSTRUCTION&);
 	void LoadFromRef(void*, const IR_INSTRUCTION&);
+	void Load16FromRef(void*, const IR_INSTRUCTION&);
 	void Mov(void*, const IR_INSTRUCTION&);
 	void Mul(void*, const IR_INSTRUCTION&);
 	void MulS(void*, const IR_INSTRUCTION&);
@@ -67,6 +69,7 @@ private:
 	void Srl(void*, const IR_INSTRUCTION&);
 	void Sra(void*, const IR_INSTRUCTION&);
 	void StoreAtRef(void*, const IR_INSTRUCTION&);
+	void Store16AtRef(void*, const IR_INSTRUCTION&);
 	void Sub(void*, const IR_INSTRUCTION&);
 	void Xor(void*, const IR_INSTRUCTION&);
 
