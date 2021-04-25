@@ -27,12 +27,13 @@ struct IR_HEADER
 class CIrFunction
 {
 public:
-	CIrFunction(void*, uint32);
+	CIrFunction() = default;
+	CIrFunction(const void*, uint32);
 
 	void Execute(void*);
 
 private:
-	static Jitter::SYM_TYPE GetOperandType(uint32);
+	static Jitter::SYM_TYPE GetOperandType(IR_OPERAND);
 	static Jitter::CONDITION GetInstructionCondition(const IR_INSTRUCTION&);
 
 	uint32 GetOperand(void*, IR_OPERAND);
@@ -58,6 +59,7 @@ private:
 	void ExtHigh64(void*, const IR_INSTRUCTION&);
 	void Jmp(void*, uint32&, const IR_INSTRUCTION&);
 	void LoadFromRef(void*, const IR_INSTRUCTION&);
+	void Load8FromRef(void*, const IR_INSTRUCTION&);
 	void Load16FromRef(void*, const IR_INSTRUCTION&);
 	void Mov(void*, const IR_INSTRUCTION&);
 	void Mul(void*, const IR_INSTRUCTION&);
@@ -66,9 +68,12 @@ private:
 	void Or(void*, const IR_INSTRUCTION&);
 	void Param(void*, const IR_INSTRUCTION&);
 	void Sll(void*, const IR_INSTRUCTION&);
+	void Sll64(void*, const IR_INSTRUCTION&);
 	void Srl(void*, const IR_INSTRUCTION&);
+	void Srl64(void*, const IR_INSTRUCTION&);
 	void Sra(void*, const IR_INSTRUCTION&);
 	void StoreAtRef(void*, const IR_INSTRUCTION&);
+	void Store8AtRef(void*, const IR_INSTRUCTION&);
 	void Store16AtRef(void*, const IR_INSTRUCTION&);
 	void Sub(void*, const IR_INSTRUCTION&);
 	void Xor(void*, const IR_INSTRUCTION&);
@@ -76,7 +81,8 @@ private:
 	IR_HEADER m_header;
 
 	std::vector<IR_INSTRUCTION> m_instructions;
-	std::vector<uint32> m_stack;
 	std::vector<uint32> m_constants;
+
+	std::vector<uint32> m_stack;
 	std::vector<uint32> m_params;
 };

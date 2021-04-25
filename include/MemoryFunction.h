@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Types.h"
+#include "IrFunction.h"
 
 class CMemoryFunction
 {
@@ -31,4 +32,5 @@ private:
 
 	void*				m_code;
 	size_t				m_size;
+	CIrFunction			m_irFunction;
 };

@@ -5,7 +5,6 @@
 #include <cstdint>
 #include "AlignedAlloc.h"
 #include "MemoryFunction.h"
-#include "IrFunction.h"
 
 #define BLOCK_ALIGN 0x10
 
@@ -56,6 +55,7 @@ CMemoryFunction::CMemoryFunction()
 
 CMemoryFunction::CMemoryFunction(const void* code, size_t size)
 : m_code(nullptr)
+, m_irFunction(code, size)
 {
 #if defined(MEMFUNC_USE_WIN32)
 	m_size = size;
@@ -142,15 +142,13 @@ CMemoryFunction& CMemoryFunction::operator =(CMemoryFunction&& rhs)
 	Reset();
 	std::swap(m_code, rhs.m_code);
 	std::swap(m_size, rhs.m_size);
+	std::swap(m_irFunction, rhs.m_irFunction);
 	return (*this);
 }
 
 void CMemoryFunction::operator()(void* context)
 {
-	typedef void (*FctType)(void*);
-	auto fct = reinterpret_cast<FctType>(m_code);
-	CIrFunction function(m_code, m_size);
-	function.Execute(context);
+	m_irFunction.Execute(context);
 }
 
 void* CMemoryFunction::GetCode() const

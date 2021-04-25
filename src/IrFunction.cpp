@@ -14,7 +14,7 @@ CONDITION CIrFunction::GetInstructionCondition(const IR_INSTRUCTION& instr)
 	return static_cast<Jitter::CONDITION>(instr.op >> 24);
 }
 
-CIrFunction::CIrFunction(void* code, uint32 size)
+CIrFunction::CIrFunction(const void* code, uint32 size)
 {
 	Framework::CPtrStream inputStream(code, size);
 	inputStream.Read(&m_header, sizeof(IR_HEADER));
@@ -87,6 +87,9 @@ void CIrFunction::Execute(void* context)
 		case OP_LOADFROMREF:
 			LoadFromRef(context, instr);
 			break;
+		case OP_LOAD8FROMREF:
+			Load8FromRef(context, instr);
+			break;
 		case OP_LOAD16FROMREF:
 			Load16FromRef(context, instr);
 			break;
@@ -98,6 +101,8 @@ void CIrFunction::Execute(void* context)
 			break;
 		case OP_MULS:
 			MulS(context, instr);
+			break;
+		case OP_NOP:
 			break;
 		case OP_NOT:
 			Not(context, instr);
@@ -111,14 +116,23 @@ void CIrFunction::Execute(void* context)
 		case OP_SLL:
 			Sll(context, instr);
 			break;
+		case OP_SLL64:
+			Sll64(context, instr);
+			break;
 		case OP_SRL:
 			Srl(context, instr);
+			break;
+		case OP_SRL64:
+			Srl64(context, instr);
 			break;
 		case OP_SRA:
 			Sra(context, instr);
 			break;
 		case OP_STOREATREF:
 			StoreAtRef(context, instr);
+			break;
+		case OP_STORE8ATREF:
+			Store8AtRef(context, instr);
 			break;
 		case OP_STORE16ATREF:
 			Store16AtRef(context, instr);
@@ -235,7 +249,9 @@ void CIrFunction::Call(void* context, const IR_INSTRUCTION& instr)
 		fct(param0, param1, param2);
 	}
 	break;
+	case 0x80898300:
 	case 0x80898400:
+	case 0x808B8400:
 	{
 		void* param0 = context;
 		uint64 param1 = GetOperand64(context, m_params[1]);
@@ -288,6 +304,9 @@ void CIrFunction::Cmp64(void* context, const IR_INSTRUCTION& instr)
 		break;
 	case CONDITION_LT:
 		dstValue = (static_cast<int64>(src1Value) < static_cast<int64>(src2Value));
+		break;
+	case CONDITION_LE:
+		dstValue = (static_cast<int64>(src1Value) <= static_cast<int64>(src2Value));
 		break;
 	default:
 		assert(false);
@@ -405,6 +424,12 @@ void CIrFunction::LoadFromRef(void* context, const IR_INSTRUCTION& instr)
 		SetOperand(context, instr.dst, dstValue);
 	}
 	break;
+	case SYM_RELATIVE64:
+	{
+		auto dstValue = *reinterpret_cast<uint64*>(src1Value);
+		SetOperand64(context, instr.dst, dstValue);
+	}
+	break;
 	case SYM_TMP_REFERENCE:
 	{
 		auto dstValue = *reinterpret_cast<uintptr_t*>(src1Value);
@@ -415,6 +440,13 @@ void CIrFunction::LoadFromRef(void* context, const IR_INSTRUCTION& instr)
 		assert(false);
 		break;
 	}
+}
+
+void CIrFunction::Load8FromRef(void* context, const IR_INSTRUCTION& instr)
+{
+	auto src1Value = GetOperandPtr(context, instr.src1);
+	auto dstValue = *reinterpret_cast<uint8*>(src1Value);
+	SetOperand(context, instr.dst, dstValue);
 }
 
 void CIrFunction::Load16FromRef(void* context, const IR_INSTRUCTION& instr)
@@ -495,12 +527,28 @@ void CIrFunction::Sll(void* context, const IR_INSTRUCTION& instr)
 	SetOperand(context, instr.dst, dstValue);
 }
 
+void CIrFunction::Sll64(void* context, const IR_INSTRUCTION& instr)
+{
+	uint64 src1Value = GetOperand64(context, instr.src1);
+	uint32 src2Value = GetOperand(context, instr.src2);
+	uint64 dstValue = src1Value << src2Value;
+	SetOperand64(context, instr.dst, dstValue);
+}
+
 void CIrFunction::Srl(void* context, const IR_INSTRUCTION& instr)
 {
 	uint32 src1Value = GetOperand(context, instr.src1);
 	uint32 src2Value = GetOperand(context, instr.src2);
 	uint32 dstValue = src1Value >> src2Value;
 	SetOperand(context, instr.dst, dstValue);
+}
+
+void CIrFunction::Srl64(void* context, const IR_INSTRUCTION& instr)
+{
+	uint64 src1Value = GetOperand64(context, instr.src1);
+	uint32 src2Value = GetOperand(context, instr.src2);
+	uint64 dstValue = src1Value >> src2Value;
+	SetOperand64(context, instr.dst, dstValue);
 }
 
 void CIrFunction::Sra(void* context, const IR_INSTRUCTION& instr)
@@ -525,6 +573,7 @@ void CIrFunction::StoreAtRef(void* context, const IR_INSTRUCTION& instr)
 	}
 	break;
 	case SYM_RELATIVE64:
+	case SYM_CONSTANT64:
 	{
 		auto value = GetOperand64(context, instr.src2);
 		*reinterpret_cast<uint64*>(src1Value) = value;
@@ -540,6 +589,13 @@ void CIrFunction::StoreAtRef(void* context, const IR_INSTRUCTION& instr)
 		assert(false);
 		break;
 	}
+}
+
+void CIrFunction::Store8AtRef(void* context, const IR_INSTRUCTION& instr)
+{
+	auto src1Value = GetOperandPtr(context, instr.src1);
+	auto value = GetOperand(context, instr.src2);
+	*reinterpret_cast<uint8*>(src1Value) = static_cast<uint8>(value);
 }
 
 void CIrFunction::Store16AtRef(void* context, const IR_INSTRUCTION& instr)
